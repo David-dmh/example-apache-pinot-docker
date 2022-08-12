@@ -22,6 +22,9 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
+/**
+ *case classes representing Json msgs received from cryptocompare web socket for which we want to serialize into objects.
+ **/
 case class WSMsgSubRequest(action: String, subs: Seq[String])
 //case class WSMsgSubRequestSuccess(TYPE: String, MESSAGE: String, SUB: String)
 case class WSMsgStart(TYPE: String, MESSAGE: String, SERVER_UPTIME_SECONDS: Long, SERVER_TIME_MS: Long, CLIENT_ID:Long, SOCKET_ID: String, RATELIMIT_MAX_DAY:Long, RATELIMIT_REMAINING_DAY: Long, RATELIMIT_MAX_MINUTE: Long, RATELIMIT_REMAINING_MINUTE:Long)
@@ -30,6 +33,10 @@ case class WSMsgWrongApiKey(TYPE: String, MESSAGE: String, PARAMETER: String, IN
 case class WSMsgTicker(TYPE: String, MARKET: String, FROMSYMBOL: String, TOSYMBOL: String, FLAGS: Long, PRICE: Double, LASTUPDATE: Long, LASTVOLUME: Double, VOLUMEDAY: Double)
 case class WSMsgTrade(TYPE: String, M: String, FSYM: String, TSYM: String, F: String, ID: String, TS: Long, Q:Double, P: Double, TOTAL: Double, RTS: Long)
 
+/**
+ *
+This case class represents the converted json msgs we want to process in our Spark Dataset
+ */
 case class TradeMsg(id: String, fromcoin: String, tocurrency: String, market: String, direction: String, timestamp: Timestamp, quantity: Double, vol: Double, price: Double, window: (Timestamp, Timestamp))
 case object TradeMsg{
   def apply(w: WSMsgTrade, period:Int): TradeMsg = {
@@ -47,6 +54,9 @@ case object TradeMsg{
 }
 case class TradeMsgAvgByWindowPeriod(date: Timestamp, window_start: Timestamp, window_end: Timestamp, market: String, direction: String, fromcoin: String, tocurrency: String, totalvol: Double, avgprice: Double, totalquantity: Double, counttxns: Long)
 
+/**
+ * spray json to allow for serializing from json to case classes
+ */
 object ConsumeWSJsonProtocol extends DefaultJsonProtocol {
   implicit val wsmsgreqFormat = jsonFormat2(WSMsgSubRequest)
   implicit val wsmsgstartFormat = jsonFormat10(WSMsgStart)
@@ -69,6 +79,12 @@ object ConsumeWS {
   var kafkaProducer: Option[KafkaProducer[String, String]] = None
   var watchlist: Option[Seq[String]] = None
 
+  /**
+   *
+   * function to process streamed json msgs from websocket.
+   * Once messages start streaming into the websocket, we will send msgs to kafka topic using Akka actor
+   * A scheduler will also be started and upon expiration, a poison message will be sent to the akka websocket stream t terminate the process and close the stream.
+   */
   def processWSJsonMsg(json: String, actorref: ActorRef, streamerDFActor: ActorRef, timeout: Int) = {
     def asWsMsgStart(json: String) = json.parseJson.convertTo[WSMsgStart]
     def asWsMsgInfo(json: String) = json.parseJson.convertTo[WSMsgInfo]
@@ -112,6 +128,10 @@ object ConsumeWS {
     }
   }
 
+  /**
+   *
+   * construct websocketflow instance to be used using akka stream
+   */
   def websocketFlow(streamerDFActor: ActorRef, timeout: Int) = {
     import akka.stream.scaladsl._
 
@@ -153,6 +173,10 @@ object ConsumeWS {
     }
   }
 
+  /**
+   *
+   * function to start the web socket streaming from cryptocompare.com
+   */
   def streamWebSocketToKafka(kafkaBootstrapServer:String, kafkaTopic: String, apikey: String, watchlist:Seq[String], timeout: Int) = {
     implicit val producer = getKafkaProducer(kafkaBootstrapServer)
     this.kafkaProducer = Some(producer)
@@ -171,6 +195,10 @@ object ConsumeWS {
     new KafkaProducer[String, String](props)
   }
 
+  /**
+   *
+   * This class extends Actor and listens for msgs to poison the current Akka stream to indicate that the websocket should be closed and thus the actor system to terminate.
+   */
   class WSTimer(actorRef: ActorRef) extends Actor with ActorLogging {
     override def receive = {
       case _ =>
@@ -185,6 +213,11 @@ object ConsumeWS {
     }
   }
 
+  /**
+   * This class extends Actor to receive msgs published from the websocket and then uses the Kafka producer defined to send msgs to the definde topic
+   * @param kafkaTopic: The kafka topic that msgs received from the websockets should be sent to
+   * @param kafkaproducer: The Kafka producer configuration
+   */
   class WSTradeMsgKafkaSender(kafkaTopic:String) (implicit val kafkaproducer: KafkaProducer[String, String]) extends Actor {
     override def receive = {
       case w:WSMsgTrade =>
@@ -200,6 +233,10 @@ object ConsumeWS {
 object SparkProcessMsgs{
   import org.apache.spark.sql.functions._
 
+  /**
+   *
+   * function to perform aggregates
+   */
   def highestTxnsPerVolEvery60SecsDSWithState(df: Dataset[WSMsgTrade])(implicit spark: SparkSession) = {
     import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
     import spark.implicits._
@@ -253,9 +290,21 @@ object SparkProcessMsgs{
 
   def wstradeschema() = Encoders.product[WSMsgTrade].schema
 
+  /**
+   *
+   * @param apikey : This is the API Key that is gotten from cryptocompare.com.
+   * @param kafkabootstrapserver : Kafka Bootstrap Server URL
+   * @param kafkatopicin: Kafka topic that the websocket will stream msgs to. Also serves as input for Spark to read from and process msgs
+   * @param kafkatopicout Kafka topic that our Spark process will send messages to. Also represents the kafka topic that Apache Pinot will read from
+   * @param watchlist: This cryptocompare specific. It represents the type of messages we are interested in listening to. e.g: 0~Coinbase~BTC~USD 0~Binance~BTC~USDT .Please see cryptocompare site for description
+   * @param timeout: How long we want the websocket stream piping msgs from crytocompare to be open
+   * @param spark: the implicit SparkSession
+   * @return: NotUsed
+   */
   def runProcess(apikey: String, kafkabootstrapserver: String, kafkatopicin: String, kafkatopicout:String, watchlist:Seq[String])(implicit timeout: Int, spark: SparkSession)= {
     import spark.implicits._
 
+    //build a DataSet using DataStreamReader from kafka topic
     val kafkamsgstream= spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", kafkabootstrapserver)
@@ -266,6 +315,7 @@ object SparkProcessMsgs{
       .select(from_json($"wstradejson", wstradeschema).as("wstrade"))
       .selectExpr("wstrade.*").as[WSMsgTrade]
 
+    //Do some more post-processin: perform agregates on tumbling window
     val windowperiod = highestTxnsPerVolEvery60SecsDSWithState(kafkamsgstream)
 
     //convert to jsonstructure and push to kafka downstream...   s"WSTradeMsg-${w.F}-${w.M}"
@@ -277,7 +327,7 @@ object SparkProcessMsgs{
         .cast("String").as("value"))
 
 
-    //write to kafka stream
+    //write to kafka stream and start process.
     val query = txnjsonKafkaDF.writeStream
       .format("kafka")
       .option("kafka.bootstrap.servers", kafkabootstrapserver)
@@ -287,8 +337,10 @@ object SparkProcessMsgs{
       .trigger(Trigger.ProcessingTime(15.seconds))
       .start()
 
+    //start the process of websocket streaming
     ConsumeWS.streamWebSocketToKafka(kafkabootstrapserver, kafkatopicin, apikey, watchlist, timeout)
 
+    //this will allow Spark to keep streaming msgs until the last thread - websocket thread terminates and then it will also gracefully terminate
     query.awaitTermination(timeoutMs=1000*60)
 
   }
@@ -301,6 +353,10 @@ object SparkProcessMsgs{
                 |in .env file
                 |""".stripMargin
 
+  /**
+   * This function reads environment variables passed into the code and returns a map.
+   * @return
+   */
   def readEnvVariables = {
     val kafkabootstrapserver = sys.env.get("KAFKA_BOOTSTRAP_SERVER")
     val kafkatopicin = sys.env.get("KAFKA_STREAMIN_TOPIC")
@@ -350,8 +406,10 @@ object SparkProcessMsgs{
   }
 
   def main(args: Array[String]): Unit = {
+    //Get the passed environment variables. If any is missing, print Usage Error and exit.
     val extractedparammap = readEnvVariables
 
+    //extract the various env entries into variables
     val apikey:String = extractedparammap("apikey").asInstanceOf[String]
     val kafkabootstrapserver = extractedparammap("kafkabootstrapserver").asInstanceOf[String]
     val kafkatopicin = extractedparammap("kafkatopicin").asInstanceOf[String]
@@ -359,12 +417,14 @@ object SparkProcessMsgs{
     val watchlist = extractedparammap("watchlist").asInstanceOf[Seq[String]]
     implicit val timeout = extractedparammap("timeout").asInstanceOf[Int]
 
+    //build spark session
     implicit val spark: SparkSession = SparkSession.builder
       .appName("CryptoCompare to Stream")
       .getOrCreate()
 
     spark.conf.set("spark.sql.shuffle.partitions",8)
 
+    //call function to start program
     runProcess(apikey, kafkabootstrapserver, kafkatopicin, kafkatopicout, watchlist);
   }
 }
