@@ -32,6 +32,7 @@ RUN chmod g+rwX ${SBT_HOME} && \
     chown -R 1001:1001 ${SPARK_HOME}/conf && \
     chown -R 1001:1001 ${SBT_HOME} && \
     chown -R 1001:1001 /opt/spark-apps && \
+    chmod a+rwX /opt/spark-apps && \
     chown -R 1001:1001 /opt/spark-data
 
 USER 1001

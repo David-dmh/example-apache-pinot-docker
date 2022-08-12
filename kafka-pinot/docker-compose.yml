@@ -51,8 +51,8 @@ services:
       kafka-topics.sh --bootstrap-server pinot-kafka:9093 --list
 
       echo -e 'Creating kafka topics ${KAFKA_STREAMIN_TOPIC}, ${KAFKA_STREAMOUT_TOPIC}'
-      kafka-topics.sh --bootstrap-server pinot-kafka:9093 --create --topic ${KAFKA_STREAMIN_TOPIC:?cryptocomparetopic} --replication-factor 1 --partitions 1
-      kafka-topics.sh --bootstrap-server pinot-kafka:9093 --create --topic ${KAFKA_STREAMOUT_TOPIC:?pinottopic} --replication-factor 1 --partitions 1
+      kafka-topics.sh --bootstrap-server pinot-kafka:9093 --create --topic ${KAFKA_STREAMIN_TOPIC} --replication-factor 1 --partitions 1
+      kafka-topics.sh --bootstrap-server pinot-kafka:9093 --create --topic ${KAFKA_STREAMOUT_TOPIC} --replication-factor 1 --partitions 1
 
       echo -e 'Successfully created the following topics:'
       kafka-topics.sh --bootstrap-server pinot-kafka:9093 --list
@@ -62,7 +62,7 @@ services:
     networks:
       - pinot-network
   pinot-controller:
-    image: apachepinot/pinot:0.9.3
+    image: apachepinot/pinot
     command: "StartController -zkAddress pinot-zookeeper:2181"
     container_name: "pinot-controller"
     restart: unless-stopped
@@ -77,7 +77,7 @@ services:
     volumes:
       - ../data/:/opt/data/
   pinot-broker:
-    image: apachepinot/pinot:0.9.3
+    image: apachepinot/pinot
     command: "StartBroker -zkAddress pinot-zookeeper:2181"
     restart: unless-stopped
     container_name: "pinot-broker"
@@ -90,7 +90,7 @@ services:
     networks:
       - pinot-network
   pinot-server:
-    image: apachepinot/pinot:0.9.3
+    image: apachepinot/pinot
     command: "StartServer -zkAddress pinot-zookeeper:2181"
     restart: unless-stopped
     container_name: "pinot-server"

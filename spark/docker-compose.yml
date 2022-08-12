@@ -10,7 +10,6 @@ services:
       - "18080:8080"
       - "17077:7077"
     volumes:
-      - ../apps:/opt/spark-apps
       - ../data:/opt/spark-data
       - ./spark-defaults.conf:/bitnami/spark/conf/spark-defaults.conf
       - ./log4j.properties:/bitnami/spark/conf/log4j.properties
@@ -40,7 +39,6 @@ services:
     env_file:
       - ./.env
     volumes:
-      - ../apps:/opt/spark-apps
       - ../data:/opt/spark-data
       - ./spark-defaults.conf:/bitnami/spark/conf/spark-defaults.conf
       - ./log4j.properties:/bitnami/spark/conf/log4j.properties

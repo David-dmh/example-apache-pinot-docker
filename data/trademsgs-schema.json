@@ -48,16 +48,16 @@
       "granularity": "1:SECONDS"
     },
     {
-        "name": "window_start",
-        "dataType": "TIMESTAMP",
-        "format": "1:SECONDS:SIMPLE_DATE_FORMAT:yyyy-MM-dd HH:mm:ss",
-        "granularity": "1:SECONDS"
+      "name": "window_start",
+      "dataType": "TIMESTAMP",
+      "format": "1:SECONDS:SIMPLE_DATE_FORMAT:yyyy-MM-dd HH:mm:ss",
+      "granularity": "1:SECONDS"
     },
     {
-        "name": "window_end",
-        "dataType": "TIMESTAMP",
-        "format": "1:SECONDS:SIMPLE_DATE_FORMAT:yyyy-MM-dd HH:mm:ss",
-        "granularity": "1:SECONDS"
+      "name": "window_end",
+      "dataType": "TIMESTAMP",
+      "format": "1:SECONDS:SIMPLE_DATE_FORMAT:yyyy-MM-dd HH:mm:ss",
+      "granularity": "1:SECONDS"
     }
 
   ]
