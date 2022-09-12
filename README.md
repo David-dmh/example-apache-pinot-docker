@@ -5,6 +5,8 @@ The kafka source is itself populated by aggregating data based on realtime crypt
 
 The entire running of this project has been dockerized to allow for easy setup.
 
+<a href="https://gitpod.io/#https://github.com/Anant/example-apache-pinot-docker" rel="nofollow noopener noreferrer" target="_blank" class="after:hidden"><img src="https://gitpod.io/button/open-in-gitpod.svg" alt="Open in Gitpod"></a>
+
 
 ## Prerequisites
 To run the project, you must have the following installed on your local system.
